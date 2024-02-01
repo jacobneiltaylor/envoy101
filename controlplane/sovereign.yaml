@@ -1,0 +1,12 @@
+sources:
+  - type: file
+    scope: routes
+    config:
+      spec:
+        protocol: file
+        serialization: yaml
+        path: /opt/sovereign/routes.yaml
+
+templates:
+  default:
+    routes: python://routes.py

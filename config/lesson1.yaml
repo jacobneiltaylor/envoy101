@@ -1,0 +1,70 @@
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8081
+layered_runtime:
+  layers:
+    - name: static-layer
+      static_layer:
+        envoy.reloadable_features.http1_use_balsa_parser: true
+        envoy.reloadable_features.http2_use_oghttp2: true
+        envoy.resource_limits.listener.proxy.connection_limit: 1000
+        overload.global_downstream_max_connections: 1000
+static_resources:
+  clusters:
+    - name: httpbin_cluster
+      type: STRICT_DNS
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: httpbin_cluster
+        endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: httpbin
+                    port_value: 80
+
+  listeners:
+    - name: httpbin-listener
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager"
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": "type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog"
+                      log_format:
+                        json_format:
+                          timestamp: "%START_TIME%"
+                          flags: "%RESPONSE_FLAGS%"
+                          code: "%RESPONSE_CODE%"
+                          proto: "%PROTOCOL%"
+                          method: "%REQ(:METHOD)%"
+                          host: "%REQ(:AUTHORITY)%"
+                          path: "%REQ(:PATH)%"
+                codec_type: AUTO
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains:
+                        - '*'
+                      routes:
+                        - match:
+                            prefix: /
+                          route:
+                            cluster: httpbin_cluster
+                stat_prefix: httpbin-listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      traffic_direction: OUTBOUND

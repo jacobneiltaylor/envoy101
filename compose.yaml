@@ -1,0 +1,39 @@
+version: "3.8"
+services:
+  envoy:
+    environment:
+      - loglevel=info
+    build:
+      context: "."
+      dockerfile: ./dockerfiles/envoy.dockerfile
+      args:
+        - LESSON=${LESSON}
+    ports:
+      - 8080:8080
+      - 8081:8081
+    volumes:
+      - ipc:/mnt/ipc
+  extauthz:
+    environment:
+       - EXTAUTHZ_UDS_PATH=/mnt/ipc/extauthz.sock
+    build:
+      context: ./extauthz
+      dockerfile: ../dockerfiles/extauthz.dockerfile
+    volumes:
+      - ipc:/mnt/ipc
+  httpbin:
+    image: kennethreitz/httpbin
+    ports:
+      - 80:80
+  controlplane:
+    environment:
+      - SOVEREIGN_SOURCES_REFRESH_RATE=5
+    build:
+      context: ./controlplane
+      dockerfile: ../dockerfiles/controlplane.dockerfile
+    ports:
+      - 18080:8080
+    volumes:
+      - ${PWD}/controlplane/routes.yaml:/opt/sovereign/routes.yaml
+volumes:
+     ipc: 

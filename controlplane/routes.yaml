@@ -1,0 +1,7 @@
+- service_clusters: ["envoy-lesson"]
+  path: /foo
+  body: foo
+
+- service_clusters: ["envoy-lesson"]
+  path: /bar
+  body: bar
