@@ -62,6 +62,10 @@ static_resources:
                             prefix: /
                           route:
                             cluster: httpbin_cluster
+#                          request_headers_to_add:
+#                            - header: 
+#                                key: x-lesson-id
+#                                value: "1"
                 stat_prefix: httpbin-listener
       address:
         socket_address:
