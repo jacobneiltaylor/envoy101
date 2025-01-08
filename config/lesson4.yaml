@@ -1,6 +1,3 @@
-node:
-  id: node0
-  cluster: envoy-lesson
 admin:
   address:
     socket_address:
@@ -28,20 +25,24 @@ static_resources:
                   socket_address:
                     address: httpbin
                     port_value: 80
-    - name: controlplane_cluster
-      type: STRICT_DNS
+    - name: extauthz_cluster
+      type: STATIC
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
       connect_timeout: 0.25s
       load_assignment:
-        cluster_name: controlplane_cluster
+        cluster_name: extauthz_cluster
         endpoints:
           - lb_endpoints:
             - endpoint:
                 address:
-                  socket_address:
-                    address: controlplane
-                    port_value: 8080
+                  pipe:
+                    path: /mnt/ipc/extauthz.sock
   listeners:
-    - name: rds-listener
+    - name: httpbin-auth-listener
       filter_chains:
         - filters:
             - name: envoy.filters.network.http_connection_manager
@@ -60,22 +61,34 @@ static_resources:
                           method: "%REQ(:METHOD)%"
                           host: "%REQ(:AUTHORITY)%"
                           path: "%REQ(:PATH)%"
+                          authenticated: "%DYNAMIC_METADATA(envoy.filters.http.ext_authz:authenticated)%"
+                          identity: "%DYNAMIC_METADATA(envoy.filters.http.ext_authz:identity)%"
                 codec_type: AUTO
                 http_filters:
+                  - name: envoy.filters.http.ext_authz
+                    typed_config:
+                      "@type": "type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz"
+                      transport_api_version: "V3"
+                      include_peer_certificate: true
+                      grpc_service:
+                        envoy_grpc:
+                          cluster_name: extauthz_cluster
+                        timeout: 0.5s
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-                rds:
-                  route_config_name: rds_routes
-                  config_source:
-                    resource_api_version: V3
-                    api_config_source:
-                      api_type: REST
-                      transport_api_version: V3
-                      cluster_names: [controlplane_cluster]
-                      refresh_delay:
-                        seconds: 5
-                stat_prefix: rds-listener
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains:
+                        - '*'
+                      routes:
+                        - match:
+                            prefix: /
+                          route:
+                            cluster: httpbin_cluster
+                stat_prefix: httpbin-listener
       address:
         socket_address:
           address: 0.0.0.0
